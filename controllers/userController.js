@@ -14,8 +14,21 @@ exports.createUser = async (req, res) =>{
             });
         }
         const user = await Users.create({ username, email, password })
+
+        const token = jwt.sign(
+        { id: user._id },
+        process.env.JWT_SECRET,
+        { expiresIn: "1d" }
+        );
+
         res.status(201).json({
-            message: "utilisateur créé avec succès"
+            message: "utilisateur créé avec succès",
+            token,
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email
+            }
         });
     } catch (err) {
         res.status(500).json({
@@ -56,7 +69,7 @@ exports.loginUser = async (req, res) =>{
             token,
             user: {
                 id: user._id,
-                name: user.name,
+                username: user.username,
                 email: user.email
             }
         });
