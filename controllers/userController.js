@@ -1,7 +1,9 @@
 const Users = require('../models/Users');
+const Events = require('../models/Events')
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 
+// Créer un utilisateur
 exports.createUser = async (req, res) =>{
     try{
         const { username, email, password } = req.body;
@@ -22,6 +24,7 @@ exports.createUser = async (req, res) =>{
     }
 };
 
+// Se connecter à son compte
 exports.loginUser = async (req, res) =>{
     try{
         const { email, password } = req.body;
@@ -62,4 +65,34 @@ exports.loginUser = async (req, res) =>{
             message: `Erreur server, ${err}`
         });
     }
+};
+
+// Supprimer son propre compte
+exports.deleteUser = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await Events.deleteMany({ createdBy: userId });
+
+    await Users.findByIdAndDelete(userId);
+    res.json({ message: "Compte et événements associés supprimés" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Exporter ses données personnelles
+exports.exportUserData = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await Users.findById(userId).select("-password");
+    const events = await Events.find({ createdBy: userId });
+
+    res.json({
+      user,
+      events,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
