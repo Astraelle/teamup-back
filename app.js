@@ -5,7 +5,10 @@ const rateLimit = require('express-rate-limit');
 const dotenv = require('dotenv');
 
 const userRoutes = require('./routes/userRoutes');
-const eventRoutes = require('./routes/eventRoutes')
+const eventRoutes = require('./routes/eventRoutes');
+const teamRoutes = require("./routes/teamRoutes");
+const authRoutes = require('./routes/authRoutes');
+const messageRoutes = require("./routes/messageRoutes");
 
 dotenv.config();
 
@@ -24,6 +27,9 @@ app.use(limiter);
 
 app.use("/api/users", userRoutes);
 app.use("/api/events", eventRoutes);
+app.use("/api/teams", teamRoutes);
+app.use('/api/auth', authRoutes);
+app.use("/api/messages", messageRoutes);
 
 app.use((err, req, res, next) =>{
     console.error(err.stack);

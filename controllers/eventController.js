@@ -38,6 +38,16 @@ exports.getEventById = async (req, res) => {
   }
 };
 
+// Récupérer mes événements
+exports.getMyEvents = async (req, res) => {
+  try {
+    const events = await Events.find({ createdBy: req.user.id });
+    res.json(events);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // Mettre à jour un événement
 exports.updateEvent = async (req, res) => {
   try {
