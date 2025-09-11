@@ -3,7 +3,7 @@ const Events = require('../models/Events.js');
 // 🔹 Créer un événement
 exports.createEvent = async (req, res) => {
   try {
-    const { title, description, date, startTime, location } = req.body; // ✅ on récupère startTime
+    const { title, description, date, startTime, location, maxParticipants } = req.body;
     const userId = req.user.id;
 
     if (!date || !startTime) {
@@ -19,18 +19,24 @@ exports.createEvent = async (req, res) => {
       createdBy: userId,
       participants: [userId], // ✅ créateur auto-inscrit
       status: "open",         // ✅ par défaut l'événement est ouvert
+      maxParticipants: maxParticipants || 0, // 0 = pas de limite
     });
 
-    res.status(201).json(event);
+    const populated = await event.populate([
+      { path: "createdBy", select: "username email" },
+      { path: "participants", select: "username email" }
+    ]);
+
+    res.status(201).json(populated);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// 🔹 Récupérer tous les événements
+// 🔹 Récupérer tous les événements ouverts
 exports.getEvents = async (req, res) => {
   try {
-    const events = await Events.find()
+    const events = await Events.find({ status: "open" })
       .populate("createdBy", "username")
       .populate("participants", "username email");
 
@@ -76,7 +82,7 @@ exports.updateEvent = async (req, res) => {
       return res.status(403).json({ message: "Non autorisé" });
     }
 
-    const { title, description, date, startTime, location } = req.body;
+    const { title, description, date, startTime, location, maxParticipants } = req.body;
     if (!date || !startTime) {
       return res.status(400).json({ message: "La date et l'heure sont obligatoires." });
     }
@@ -86,9 +92,12 @@ exports.updateEvent = async (req, res) => {
     event.date = date || event.date;
     event.startTime = startTime || event.startTime;
     event.location = location || event.location;
+    event.maxParticipants = maxParticipants ?? event.maxParticipants;
 
     const updatedEvent = await event.save();
-    res.json(updatedEvent);
+    const populated = await updatedEvent.populate("participants", "username email");
+
+    res.json(populated);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -115,7 +124,6 @@ exports.deleteEvent = async (req, res) => {
 exports.joinEvent = async (req, res) => {
   try {
     const event = await Events.findById(req.params.id);
-
     if (!event) return res.status(404).json({ message: "Événement introuvable" });
 
     if (event.status !== "open") {
@@ -126,10 +134,6 @@ exports.joinEvent = async (req, res) => {
       return res.status(400).json({ message: "Capacité maximale atteinte." });
     }
 
-    if (event.participants.includes(req.user.id)) {
-      return res.status(400).json({ message: "Vous êtes déjà inscrit à cet événement." });
-    }
-
     if (event.participants.some(p => p.toString() === req.user.id)) {
       return res.status(400).json({ message: "Vous êtes déjà inscrit à cet événement." });
     }
@@ -137,7 +141,8 @@ exports.joinEvent = async (req, res) => {
     event.participants.push(req.user.id);
     await event.save();
 
-    res.json({ message: "Inscription réussie", event });
+    const populated = await event.populate("participants", "username email");
+    res.json({ message: "Inscription réussie", event: populated });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -147,7 +152,6 @@ exports.joinEvent = async (req, res) => {
 exports.leaveEvent = async (req, res) => {
   try {
     const event = await Events.findById(req.params.id);
-
     if (!event) return res.status(404).json({ message: "Événement introuvable" });
 
     event.participants = event.participants.filter(
@@ -155,8 +159,9 @@ exports.leaveEvent = async (req, res) => {
     );
 
     await event.save();
+    const populated = await event.populate("participants", "username email");
 
-    res.json({ message: "Vous avez quitté l'événement", event });
+    res.json({ message: "Vous avez quitté l'événement", event: populated });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -166,7 +171,6 @@ exports.leaveEvent = async (req, res) => {
 exports.cancelEvent = async (req, res) => {
   try {
     const event = await Events.findById(req.params.id);
-
     if (!event) return res.status(404).json({ message: "Événement introuvable" });
 
     if (event.createdBy.toString() !== req.user.id) {
@@ -192,6 +196,7 @@ exports.searchEventsByLocation = async (req, res) => {
     }
 
     const events = await Events.find({
+      status: "open", // ✅ exclure les annulés
       location: {
         $near: {
           $geometry: { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] },
